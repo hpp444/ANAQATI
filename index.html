@@ -1223,6 +1223,37 @@
             text-align: center;
         }
 
+        .order-item-actions {
+            display: flex;
+            gap: 5px;
+            margin-right: 10px;
+        }
+
+        .order-item-action-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: var(--transition);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .order-item-delete-btn {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+        }
+
+        .order-item-delete-btn:hover, .order-item-delete-btn:active {
+            background-color: #f44336;
+            color: white;
+            transform: scale(1.1);
+        }
+
         .order-total {
             display: flex;
             justify-content: space-between;
@@ -1233,6 +1264,30 @@
             color: var(--primary-rose);
             transition: color 0.3s ease;
             font-size: 18px;
+        }
+
+        .order-shipping {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-weight: 500;
+            color: var(--text-dark);
+            font-size: 16px;
+        }
+
+        .order-shipping-value {
+            color: var(--accent-purple);
+        }
+
+        .order-grand-total {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed rgba(233, 30, 99, 0.3);
+            font-weight: 700;
+            color: var(--primary-rose);
+            font-size: 20px;
         }
 
         .confirm-btn {
@@ -2627,8 +2682,16 @@
                         <!-- Order items will be inserted here by JavaScript -->
                     </div>
                     <div class="order-total">
-                        <span>الإجمالي:</span>
+                        <span>المجموع:</span>
                         <span id="orderTotal">0 درهم</span>
+                    </div>
+                    <div class="order-shipping">
+                        <span>رسوم التوصيل:</span>
+                        <span class="order-shipping-value">20 درهم</span>
+                    </div>
+                    <div class="order-grand-total">
+                        <span>الإجمالي:</span>
+                        <span id="orderGrandTotal">20 درهم</span>
                     </div>
                 </div>
                 
@@ -2764,6 +2827,7 @@
         const confirmOrder = document.getElementById('confirmOrder');
         const orderItemsContainer = document.getElementById('orderItemsContainer');
         const orderTotal = document.getElementById('orderTotal');
+        const orderGrandTotal = document.getElementById('orderGrandTotal');
         
         // Order confirmation elements
         const orderConfirmation = document.getElementById('orderConfirmation');
@@ -3660,11 +3724,11 @@
         function updateOrderSummary() {
             orderItemsContainer.innerHTML = '';
             
-            let total = 0;
+            let subtotal = 0;
             
-            cart.forEach(item => {
+            cart.forEach((item, index) => {
                 const itemTotal = item.price * item.quantity;
-                total += itemTotal;
+                subtotal += itemTotal;
                 
                 const orderItem = document.createElement('div');
                 orderItem.className = 'order-item';
@@ -3672,11 +3736,50 @@
                     <div class="order-item-name">${item.name}</div>
                     <div class="order-item-quantity">${item.quantity}x</div>
                     <div class="order-item-price">${itemTotal} درهم</div>
+                    <div class="order-item-actions">
+                        <button class="order-item-action-btn order-item-delete-btn" data-index="${index}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 `;
                 orderItemsContainer.appendChild(orderItem);
             });
             
-            orderTotal.textContent = `${total} درهم`;
+            // Update subtotal
+            orderTotal.textContent = `${subtotal} درهم`;
+            
+            // Calculate and update grand total (subtotal + shipping)
+            const shippingFee = 20; // Fixed shipping fee
+            const grandTotal = subtotal + shippingFee;
+            orderGrandTotal.textContent = `${grandTotal} درهم`;
+            
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.order-item-delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.getAttribute('data-index'));
+                    removeFromCart(index);
+                });
+            });
+        }
+
+        // Remove item from cart
+        function removeFromCart(index) {
+            if (index >= 0 && index < cart.length) {
+                // Remove the item from cart
+                cart.splice(index, 1);
+                
+                // Save updated cart to localStorage
+                localStorage.setItem('voraxCart', JSON.stringify(cart));
+                
+                // Update cart count
+                updateCartCount();
+                
+                // Update order summary
+                updateOrderSummary();
+                
+                // Show notification
+                showNotification('تم حذف المنتج من السلة', 'info');
+            }
         }
 
         // Show notification
@@ -3853,6 +3956,11 @@
                         return;
                     }
                     
+                    // Calculate totals
+                    const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+                    const shippingFee = 20; // Fixed shipping fee
+                    const grandTotal = subtotal + shippingFee;
+                    
                     // Prepare order data
                     const orderData = {
                         customer: {
@@ -3862,7 +3970,9 @@
                             address: address
                         },
                         cart: cart,
-                        total: cart.reduce((total, item) => total + (item.price * item.quantity), 0),
+                        subtotal: subtotal,
+                        shipping: shippingFee,
+                        total: grandTotal,
                         date: new Date().toLocaleString('ar-MA'),
                         status: 'جديد'
                     };
@@ -3880,7 +3990,9 @@
                     formData.append('city', city);
                     formData.append('address', address);
                     formData.append('cart', JSON.stringify(cart));
-                    formData.append('total', orderData.total);
+                    formData.append('subtotal', subtotal);
+                    formData.append('shipping', shippingFee);
+                    formData.append('total', grandTotal);
                     formData.append('date', orderData.date);
                     
                     // Send data using fetch
